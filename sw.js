@@ -1,5 +1,5 @@
 const CACHE = 'recipe-box-v1';
-const ASSETS = ['./', './index.html', './manifest.json', './Josephs-Recipe-Book.pdf'];
+const ASSETS = ['./', './index.html', './manifest.json', './Josephs-Recipe-Book.pdf', './apple-touch-icon.png', './icon-192.png', './icon-512.png', './favicon-32.png'];
 
 self.addEventListener('install', (e)=>{
   e.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
