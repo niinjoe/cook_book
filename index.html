@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Recipe Box — Joseph's Kitchen</title>
+<meta name="theme-color" content="#F1ECE0">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F1ECE0;
+    --card:#FBF8F2;
+    --ink:#2A2521;
+    --ink-soft:#5B5349;
+    --rust:#A8632D;
+    --rust-deep:#8A4F22;
+    --moss:#57603F;
+    --line:#DDD3C0;
+    --butter:#E8C468;
+    --danger:#A3402F;
+    --radius:3px;
+    --shadow: 0 1px 2px rgba(42,37,33,0.06), 0 4px 14px rgba(42,37,33,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  ::selection{ background: var(--butter); color:var(--ink); }
+  a{color:var(--rust-deep);}
+
+  .app{
+    display:grid;
+    grid-template-columns: 250px 1fr;
+    min-height:100vh;
+  }
+  @media (max-width: 820px){
+    .app{ grid-template-columns: 1fr; }
+    .sidebar{ position:static; height:auto; border-right:none; border-bottom:1px solid var(--line); }
+  }
+
+  /* ---------- Sidebar : recipe-box divider tabs ---------- */
+  .sidebar{
+    position:sticky; top:0; height:100vh; overflow-y:auto;
+    border-right:1px solid var(--line);
+    padding:28px 0 28px 22px;
+    display:flex; flex-direction:column;
+  }
+  .brand{
+    font-family:'Fraunces', serif;
+    font-optical-sizing:auto;
+    font-weight:600;
+    font-size:22px;
+    letter-spacing:-0.01em;
+    padding-right:22px;
+    margin-bottom:2px;
+  }
+  .brand-sub{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    padding-right:22px;
+    margin-bottom:22px;
+  }
+  .tabs{ display:flex; flex-direction:column; gap:6px; margin-bottom:18px;}
+  .tab{
+    position:relative;
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-right:none;
+    border-radius:var(--radius) 0 0 var(--radius);
+    padding:9px 14px 9px 16px;
+    margin-right:0;
+    font-size:13.5px;
+    font-weight:500;
+    cursor:pointer;
+    transition: transform .12s ease, background .12s ease;
+    color:var(--ink-soft);
+  }
+  .tab:hover{ transform: translateX(-2px); background:#fff; }
+  .tab.active{
+    background:var(--card);
+    color:var(--ink);
+    border-color: var(--rust);
+    transform: translateX(-4px);
+    box-shadow: var(--shadow);
+  }
+  .tab.active::after{
+    content:"";
+    position:absolute; right:-1px; top:0; bottom:0; width:4px;
+    background:var(--rust);
+  }
+  .tab-count{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    background:var(--paper);
+    border-radius:10px;
+    padding:1px 7px;
+  }
+  .tab.active .tab-count{ color:var(--rust-deep); }
+
+  .side-actions{ margin-top:auto; padding-right:22px; display:flex; flex-direction:column; gap:8px;}
+  .ghost-btn{
+    font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600;
+    background:none; border:1px solid var(--line); color:var(--ink-soft);
+    border-radius:var(--radius); padding:8px 10px; cursor:pointer; text-align:left;
+  }
+  .ghost-btn:hover{ border-color:var(--rust); color:var(--rust-deep); }
+
+  /* ---------- Main ---------- */
+  .main{ padding:34px 40px 80px; max-width:1080px; }
+  @media (max-width:820px){ .main{ padding:24px 18px 60px; } }
+
+  .topline{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:26px;}
+  .h1{
+    font-family:'Fraunces', serif; font-weight:600; font-size:32px; letter-spacing:-0.01em;
+    margin:0 0 4px;
+  }
+  .h1-sub{ color:var(--ink-soft); font-size:13.5px; margin:0; }
+  .add-recipe-btn{
+    background:var(--ink); color:var(--paper); border:none; border-radius:var(--radius);
+    font-family:'Inter',sans-serif; font-weight:600; font-size:13.5px;
+    padding:11px 18px; cursor:pointer; white-space:nowrap;
+  }
+  .add-recipe-btn:hover{ background:var(--rust-deep); }
+
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap:14px;
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px 16px 14px;
+    cursor:pointer;
+    position:relative;
+    box-shadow: var(--shadow);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .card:hover{ transform: translateY(-2px); }
+  .card::before{
+    content:"";
+    position:absolute; top:0; left:16px; width:34px; height:6px;
+    background:var(--butter);
+    border-radius:0 0 3px 3px;
+    opacity:0.9;
+  }
+  .card-cat{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--moss); margin:10px 0 6px;
+  }
+  .card-title{
+    font-family:'Fraunces', serif; font-weight:600; font-size:17px; line-height:1.25;
+    margin:0 0 8px;
+  }
+  .card-meta{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft); }
+  .chip-stub{
+    display:inline-block; margin-top:9px; font-size:10.5px; font-weight:600;
+    color:var(--rust-deep); background:#F3E3D2; border-radius:10px; padding:2px 8px;
+  }
+
+  .empty{
+    border:1px dashed var(--line); border-radius:var(--radius); padding:40px 20px; text-align:center; color:var(--ink-soft);
+  }
+
+  /* ---------- Detail view ---------- */
+  .detail{ max-width:720px; }
+  .back-btn{
+    background:none; border:none; color:var(--ink-soft); font-family:'Inter'; font-size:13px;
+    cursor:pointer; padding:0; margin-bottom:18px; display:inline-flex; align-items:center; gap:6px;
+  }
+  .back-btn:hover{ color:var(--rust-deep); }
+  .detail-card{
+    background:var(--card); border:1px solid var(--line); border-radius:6px;
+    padding:30px 32px; box-shadow:var(--shadow); position:relative;
+  }
+  .detail-card::before{
+    content:""; position:absolute; top:0; left:32px; width:44px; height:8px;
+    background:var(--butter); border-radius:0 0 4px 4px;
+  }
+  .detail-cat{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--moss); margin:12px 0 6px;}
+  .detail-title{ font-family:'Fraunces',serif; font-weight:700; font-size:28px; margin:0 0 10px; letter-spacing:-0.01em;}
+  .detail-notes{ color:var(--ink-soft); font-size:14.5px; line-height:1.55; margin-bottom:18px; }
+  .detail-row-actions{ display:flex; gap:8px; margin-bottom:22px; flex-wrap:wrap;}
+
+  .yield-box{
+    display:flex; align-items:center; gap:12px; background:var(--paper); border:1px solid var(--line);
+    border-radius:var(--radius); padding:10px 14px; margin-bottom:22px; width:fit-content;
+  }
+  .yield-box .lbl{ font-size:12.5px; color:var(--ink-soft); font-weight:600; }
+  .stepper{ display:flex; align-items:center; gap:10px; }
+  .stepper button{
+    width:26px; height:26px; border-radius:50%; border:1px solid var(--line); background:#fff;
+    font-size:15px; cursor:pointer; color:var(--rust-deep); font-weight:700; line-height:1;
+  }
+  .stepper button:hover{ border-color:var(--rust); }
+  .stepper span{ font-family:'IBM Plex Mono',monospace; font-weight:600; min-width:70px; text-align:center; }
+
+  h3.section-h{
+    font-family:'Fraunces',serif; font-weight:600; font-size:16px; margin:26px 0 10px;
+    border-bottom:1px solid var(--line); padding-bottom:6px;
+  }
+  .ingredient-list{ list-style:none; padding:0; margin:0; }
+  .ingredient-list li{
+    display:flex; justify-content:space-between; gap:14px; padding:7px 0;
+    border-bottom:1px dotted var(--line); font-size:14px;
+  }
+  .ingredient-list li:last-child{ border-bottom:none; }
+  .ing-amt{ font-family:'IBM Plex Mono',monospace; font-weight:600; color:var(--rust-deep); white-space:nowrap; }
+  .ing-note{ display:block; font-size:11.5px; color:var(--ink-soft); font-weight:400; }
+  .sub-h{ font-weight:700; font-size:12.5px; letter-spacing:0.03em; text-transform:uppercase; color:var(--moss); margin:14px 0 4px;}
+
+  .steps-list{ margin:0; padding-left:22px; }
+  .steps-list li{ padding:5px 0; font-size:14.5px; line-height:1.6; }
+
+  .icon-btn{
+    background:none; border:1px solid var(--line); color:var(--ink-soft); border-radius:var(--radius);
+    font-family:'Inter'; font-size:12.5px; font-weight:600; padding:8px 12px; cursor:pointer;
+  }
+  .icon-btn:hover{ border-color:var(--rust); color:var(--rust-deep); }
+  .icon-btn.danger:hover{ border-color:var(--danger); color:var(--danger); }
+
+  /* ---------- Modal / form ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(42,37,33,0.45); display:flex; align-items:flex-start;
+    justify-content:center; padding:40px 16px; overflow-y:auto; z-index:50;
+  }
+  .modal{
+    background:var(--paper); border-radius:6px; width:100%; max-width:640px; padding:28px 28px 30px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.25);
+  }
+  .modal h2{ font-family:'Fraunces',serif; font-size:22px; margin:0 0 18px; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.03em;}
+  .field input[type=text], .field input[type=number], .field textarea, .field select{
+    width:100%; font-family:'Inter'; font-size:14px; padding:9px 10px; border:1px solid var(--line);
+    border-radius:var(--radius); background:#fff; color:var(--ink);
+  }
+  .field textarea{ resize:vertical; min-height:50px; }
+  .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .ing-row, .step-row{ display:flex; gap:8px; margin-bottom:8px; align-items:flex-start; }
+  .ing-row input:nth-child(1){ flex:2; }
+  .ing-row input:nth-child(2){ flex:1; }
+  .ing-row input:nth-child(3){ flex:1.4; }
+  .row-remove{ background:none; border:none; color:var(--ink-soft); cursor:pointer; font-size:16px; padding:6px; }
+  .row-remove:hover{ color:var(--danger); }
+  .add-row-btn{
+    background:none; border:1px dashed var(--line); border-radius:var(--radius); color:var(--ink-soft);
+    font-size:12.5px; font-weight:600; padding:7px 10px; cursor:pointer; width:100%; margin-top:2px;
+  }
+  .add-row-btn:hover{ border-color:var(--rust); color:var(--rust-deep); }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+  .primary-btn{
+    background:var(--ink); color:var(--paper); border:none; border-radius:var(--radius);
+    font-weight:600; font-size:13.5px; padding:10px 18px; cursor:pointer;
+  }
+  .primary-btn:hover{ background:var(--rust-deep); }
+  .cancel-btn{
+    background:none; border:1px solid var(--line); border-radius:var(--radius); color:var(--ink-soft);
+    font-weight:600; font-size:13.5px; padding:10px 16px; cursor:pointer;
+  }
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--paper); padding:10px 18px; border-radius:20px; font-size:13px;
+    box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity .2s ease; z-index:100;
+  }
+  .toast.show{ opacity:1; }
+
+  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible{
+    outline:2px solid var(--rust); outline-offset:1px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">The Recipe Box</div>
+    <div class="brand-sub">Joseph's Kitchen · gram-precise</div>
+    <div class="tabs" id="tabs"></div>
+    <div class="side-actions">
+      <button class="ghost-btn" id="exportBtn">Export backup (.json)</button>
+      <button class="ghost-btn" id="importBtn">Import backup</button>
+      <input type="file" id="importFile" accept=".json" style="display:none">
+    </div>
+  </aside>
+
+  <main class="main" id="main"></main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== Data layer (IndexedDB) ===================== */
+const DB_NAME = 'recipeBoxDB';
+const STORE = 'recipes';
+let db;
+
+function openDB(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = (e)=>{
+      const _db = e.target.result;
+      if(!_db.objectStoreNames.contains(STORE)){
+        _db.createObjectStore(STORE, { keyPath:'id' });
+      }
+    };
+    req.onsuccess = (e)=>{ db = e.target.result; resolve(db); };
+    req.onerror = (e)=> reject(e);
+  });
+}
+function txStore(mode='readonly'){
+  return db.transaction(STORE, mode).objectStore(STORE);
+}
+function getAll(){
+  return new Promise((resolve, reject)=>{
+    const req = txStore().getAll();
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = (e)=> reject(e);
+  });
+}
+function putRecipe(recipe){
+  return new Promise((resolve, reject)=>{
+    const req = txStore('readwrite').put(recipe);
+    req.onsuccess = ()=> resolve();
+    req.onerror = (e)=> reject(e);
+  });
+}
+function deleteRecipe(id){
+  return new Promise((resolve, reject)=>{
+    const req = txStore('readwrite').delete(id);
+    req.onsuccess = ()=> resolve();
+    req.onerror = (e)=> reject(e);
+  });
+}
+function uid(){ return 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+
+/* ===================== Seed data ===================== */
+/* complete:true  -> fully specified recipe pulled from the recipe book
+   complete:false -> placeholder carried over from the book's table of contents;
+                     open it and hit Edit to fill in amounts + method            */
+const CATEGORY_ORDER = ["Pizza","Breads & Baked Goods","Desserts","Dairy","Breakfast & Snacks","Meal Prep","Condiments & Sauces","Mocktails"];
+
+const SEED = [
+  {
+    id:'r_dough_ny', category:'Pizza', title:'NY-Style Pizza Dough', complete:true,
+    subtitle:'6 × 12" balls',
+    notes:'65% hydration with vital wheat gluten for the NY chew. Built for the Ooni Volt 2. Scaled ×1.2 from the original 5-ball recipe — each ball finishes around 338 g.',
+    baseYield:6, yieldUnit:'dough balls',
+    ingredients:[
+      {name:'Bread flour', grams:1200, note:''},
+      {name:'Vital wheat gluten', grams:12, note:'1–2%, up to 24 g for more extensibility'},
+      {name:'Water (total)', grams:780, note:'split ~90/10, see steps'},
+      {name:'Salt', grams:26, note:''},
+      {name:'Sugar', grams:24, note:''},
+      {name:'Instant dry yeast', grams:3.6, note:'reduce to ~1.8 g for a 72-hr cold ferment'},
+      {name:'Olive oil', grams:18, note:''}
+    ],
+    steps:[
+      'Combine flour, vital wheat gluten, sugar, and yeast in a large bowl.',
+      'Add ~90% of the water (≈700 g) and mix until no dry flour remains.',
+      'Dissolve the salt in the remaining ~78 g water, pour in, and mix by squeezing and folding.',
+      'Add the olive oil and mix until fully absorbed.',
+      'Cover and rest 20 minutes.',
+      'Stretch & fold, round 1: 4 folds (N-S-E-W). Cover, rest 20–30 min.',
+      'Stretch & fold, round 2: repeat 4 folds. Cover, rest 20–30 min.',
+      'Stretch & fold, round 3: repeat 4 folds. Rest 20–30 min.',
+      'Divide into 6 balls (~338 g each), round tightly, and place in oiled, covered containers.',
+      'Cold ferment 24–72 hrs in the fridge. Pull out 1–2 hrs before baking to come to room temp.',
+      'Stretch, top, and bake on the Ooni Volt 2 at 750–800°F until the crust leopards, about 90 sec–2 min.'
+    ]
+  },
+  {
+    id:'r_dough_sd', category:'Pizza', title:'NY-Style Sourdough Pizza Dough', complete:false,
+    subtitle:'5 × 12" balls', notes:'', baseYield:5, yieldUnit:'dough balls', ingredients:[], steps:[]
+  },
+  {
+    id:'r_sauce_ny', category:'Pizza', title:'NY-Style Pizza Sauce', complete:false,
+    subtitle:'San Marzano, no-cook', notes:'Built around a 794 g can of Cento San Marzano tomatoes — garlic, olive oil, sea salt, oregano, optional sugar / red pepper flakes / fresh basil. Open to fill in exact amounts.',
+    baseYield:794, yieldUnit:'g sauce', ingredients:[], steps:[]
+  },
+  {
+    id:'r_sourdough_bread', category:'Breads & Baked Goods', title:'Sourdough Bread', complete:false,
+    subtitle:'Bread flour or rye, rustic', notes:'', baseYield:1, yieldUnit:'loaf', ingredients:[], steps:[]
+  },
+  {
+    id:'r_banana_bread', category:'Breads & Baked Goods', title:'Banana Bread', complete:false,
+    subtitle:'Cinnamon streusel & toasted pecans', notes:'Self-rising flour variant: drop the added salt entirely and cut baking soda to ~2 g (self-rising already carries baking powder + salt); keep a touch of soda for the banana acidity. Streusel stays on all-purpose flour.',
+    baseYield:1, yieldUnit:'loaf', ingredients:[], steps:[]
+  },
+  {
+    id:'r_banana_pancakes', category:'Breads & Baked Goods', title:'Banana Pancakes', complete:false,
+    subtitle:'Serves 2', notes:'Ripe, brown-spotted bananas add natural sweetness so you can cut back on added sugar. Base mix: bananas, eggs, flour, milk, baking powder, salt, vanilla, sugar, butter or oil.',
+    baseYield:2, yieldUnit:'servings', ingredients:[], steps:[]
+  },
+  {
+    id:'r_apple_crisp', category:'Desserts', title:'Freezer-Friendly Apple Crisp', complete:false,
+    subtitle:'Air fryer ready', notes:'', baseYield:1, yieldUnit:'batch', ingredients:[], steps:[]
+  },
+  {
+    id:'r_cheesecake', category:'Desserts', title:'High-End Cheesecake', complete:true,
+    subtitle:'Restaurant style, water bath', notes:'Silky and custardy — the technique matters as much as the ratios: mix slow to keep air out, bake in a water bath, and cool gradually.',
+    baseYield:1, yieldUnit:'8" cheesecake',
+    ingredients:[
+      {name:'Graham crackers or Biscoff, crushed', grams:160, note:'crust'},
+      {name:'Butter, melted', grams:70, note:'crust — or browned for deeper flavor'},
+      {name:'Sugar', grams:20, note:'crust'},
+      {name:'Salt', grams:1, note:'crust'},
+      {name:'Cream cheese, room temp', grams:680, note:'filling'},
+      {name:'Sour cream', grams:170, note:'filling — or crème fraîche for richer'},
+      {name:'Granulated sugar', grams:160, note:'filling'},
+      {name:'Eggs, whole', grams:160, note:'filling — about 3 large'},
+      {name:'Cornstarch', grams:20, note:'filling'},
+      {name:'Lemon juice', grams:15, note:'filling'},
+      {name:'Vanilla extract', grams:5, note:'filling — or scraped vanilla bean'},
+      {name:'Salt', grams:1, note:'filling'},
+      {name:'Heavy cream', grams:60, note:'filling, optional — softer texture'}
+    ],
+    steps:[
+      'Line the bottom of an 8" springform with parchment and wrap the outside heavily in foil for the water bath.',
+      'Crust: pulse crackers to fine crumbs, mix in sugar and salt, then stir in the melted butter. Press firmly into the base only. Bake at 350°F (175°C) for 10 min, then cool completely.',
+      'Beat the cream cheese on low speed until perfectly smooth with no lumps — do not aerate.',
+      'Add the sugar and mix on low until just combined.',
+      'Add the eggs one at a time on low speed, mixing only until each is incorporated.',
+      'Mix in the sour cream, cornstarch, lemon juice, vanilla, and salt on low until smooth. Fold in the heavy cream if using.',
+      'Pour the filling over the cooled crust. Set the pan in a larger roasting pan and add hot water halfway up the sides.',
+      'Bake at 325°F (163°C) for 65–75 min, until the edges are set and the center still jiggles slightly.',
+      'Turn off the oven and crack the door open. Let the cheesecake cool inside for 1 hr, then finish cooling at room temp.',
+      'Chill, uncovered at first, for at least 12 hrs (overnight) before releasing and slicing.'
+    ]
+  },
+  {
+    id:'r_tres_leches', category:'Desserts', title:'Tres Leches Cake', complete:false,
+    subtitle:'Bizcocho, crema & merengue', notes:'', baseYield:1, yieldUnit:'cake', ingredients:[], steps:[]
+  },
+  {
+    id:'r_teddy_crust', category:'Desserts', title:'Teddy Graham Cheesecake Crust', complete:false,
+    subtitle:'', notes:'', baseYield:1, yieldUnit:'crust', ingredients:[], steps:[]
+  },
+  {
+    id:'r_whisky_caramel', category:'Desserts', title:'High-End Whisky Caramel Sauce', complete:false,
+    subtitle:'Cheesecake edition', notes:'', baseYield:1, yieldUnit:'batch', ingredients:[], steps:[]
+  },
+  {
+    id:'r_cheese_flan', category:'Desserts', title:'Cheese Flan', complete:false,
+    subtitle:'With whisky-infused caramel', notes:'', baseYield:1, yieldUnit:'flan', ingredients:[], steps:[]
+  },
+  {
+    id:'r_sticky_toffee', category:'Desserts', title:'Sticky Toffee Pudding', complete:false,
+    subtitle:'8×8 pan + ramekins', notes:'', baseYield:1, yieldUnit:'batch', ingredients:[], steps:[]
+  },
+  {
+    id:'r_labneh', category:'Dairy', title:'Greek Yogurt Cream Cheese (Labneh)', complete:true,
+    subtitle:'Strained overnight', notes:'Kirkland (Costco) Greek yogurt works but is non-fat, giving a lighter texture — mix in a little heavy cream after straining to compensate. 8 hrs is plenty since Kirkland yogurt is already thick.',
+    baseYield:500, yieldUnit:'g yogurt in',
+    ingredients:[
+      {name:'Full-fat Greek yogurt', grams:500, note:''},
+      {name:'Salt', grams:3, note:'~1/2 tsp'},
+      {name:'Lime juice', grams:15, note:'~1 tbsp'}
+    ],
+    steps:[
+      'Whisk the yogurt, salt, and lime juice together.',
+      'Line a strainer or colander with cheesecloth and set it over a bowl to catch the whey.',
+      'Pour in the mixture, cover, and refrigerate 8–24 hrs — longer straining gives a firmer, more cream-cheese-like texture.',
+      'Discard (or save) the whey, transfer the labneh to a container.',
+      'Finish plated with honey, olive oil, toasted walnuts, or fresh herbs.'
+    ]
+  },
+  {
+    id:'r_cottage_cheese', category:'Dairy', title:'Cottage Cheese', complete:false,
+    subtitle:'Quick-use idea list', notes:'', baseYield:1, yieldUnit:'list', ingredients:[], steps:[]
+  },
+  {
+    id:'r_berry_toast', category:'Breakfast & Snacks', title:'Berry Toast', complete:false,
+    subtitle:'', notes:'', baseYield:1, yieldUnit:'serving', ingredients:[], steps:[]
+  },
+  {
+    id:'r_ny_strip', category:'Meal Prep', title:'NY Strip Meal Prep Cubes', complete:true,
+    subtitle:'With air fryer sweet potatoes', notes:'Sear on a cast-iron pan; slightly undercook on purpose (pull at 125–135°F internal) since the microwave reheat finishes the job — cooking to full medium now means dry meat later.',
+    baseYield:1, yieldUnit:'batch',
+    ingredients:[
+      {name:'NY strip steak', grams:0, note:'freeze extra portions as whole steaks, not cubes — easier to keep flexible later'},
+      {name:'Sweet potatoes', grams:0, note:'cubed 3/4"–1", skin on — scrub well, skip peeling'},
+      {name:'Avocado oil', grams:0, note:'high smoke point, for searing'},
+      {name:'Salt & pepper (or steak seasoning)', grams:0, note:'season right before cooking'}
+    ],
+    steps:[
+      'Cut the steak into 1"–1.25" cubes, trimming any larger connective tissue as you go.',
+      'Pat cubes dry and season right before cooking.',
+      'Heat a cast-iron (or stainless) skillet until genuinely hot, add avocado oil.',
+      'Sear in batches, 2–3 min total, turning to brown multiple sides. Pull at 125–135°F internal (medium-rare/medium) — it will finish cooking in the microwave reheat.',
+      'Toss cubed sweet potatoes (skin on) with oil, salt, and pepper. Air-fry at 400°F for 25–30 min, flipping halfway.',
+      'Portion seared beef and sweet potatoes into containers.',
+      'Reheat covered with a splash of water or broth to keep the beef from drying out.'
+    ]
+  },
+  {
+    id:'r_ground_beef', category:'Meal Prep', title:'Ground Beef Meal Prep', complete:false,
+    subtitle:'Rice or sweet potato', notes:'', baseYield:1, yieldUnit:'batch', ingredients:[], steps:[]
+  },
+  {
+    id:'r_mayo', category:'Condiments & Sauces', title:'Garlic-Lemon Avocado Oil Mayonnaise', complete:false,
+    subtitle:'', notes:'', baseYield:1, yieldUnit:'batch', ingredients:[], steps:[]
+  },
+  {
+    id:'r_balsamic_glaze', category:'Condiments & Sauces', title:'Balsamic Glaze', complete:false,
+    subtitle:'Reduction', notes:'', baseYield:1, yieldUnit:'batch', ingredients:[], steps:[]
+  },
+  {
+    id:'r_balsamic_vinaigrette', category:'Condiments & Sauces', title:'Balsamic Vinaigrette', complete:false,
+    subtitle:'', notes:'', baseYield:1, yieldUnit:'batch', ingredients:[], steps:[]
+  },
+  {
+    id:'r_honey_butter', category:'Condiments & Sauces', title:'Honey Butter Sauce', complete:false,
+    subtitle:'', notes:'', baseYield:1, yieldUnit:'batch', ingredients:[], steps:[]
+  },
+  {
+    id:'r_spicy_honey', category:'Condiments & Sauces', title:'Spicy Honey Sauce', complete:false,
+    subtitle:'For pepperoni pizza', notes:'', baseYield:1, yieldUnit:'batch', ingredients:[], steps:[]
+  },
+  {
+    id:'r_mocktail_kiwi', category:'Mocktails', title:'Kiwi Blueberry Coconut Cooler', complete:false,
+    subtitle:'Ingredient-first', notes:'Muddled kiwi and blueberries with lemon juice and coconut water. Built from whatever\u2019s on hand — fill in exact amounts once dialed in.',
+    baseYield:1, yieldUnit:'drink', ingredients:[], steps:[]
+  },
+  {
+    id:'r_mocktail_lychee', category:'Mocktails', title:'Honey Lychee Vanilla Lemonade', complete:false,
+    subtitle:'Ingredient-first', notes:'Lime + lemon citrus, honey dissolved in warm water, lychee syrup, vanilla extract, coconut water.',
+    baseYield:1, yieldUnit:'drink', ingredients:[], steps:[]
+  }
+];
+
+/* ===================== State ===================== */
+let recipes = [];
+let activeCategory = 'All';
+let activeRecipeId = null;
+let servingsOverride = {}; // id -> current yield qty
+
+/* ===================== Init ===================== */
+(async function init(){
+  await openDB();
+  let existing = await getAll();
+  if(existing.length === 0){
+    for(const r of SEED){ await putRecipe(r); }
+    existing = await getAll();
+  }
+  recipes = existing;
+  renderTabs();
+  renderMain();
+})();
+
+/* ===================== Rendering ===================== */
+function categoriesPresent(){
+  const set = new Set(recipes.map(r=>r.category));
+  const ordered = CATEGORY_ORDER.filter(c=>set.has(c));
+  const extra = [...set].filter(c=>!CATEGORY_ORDER.includes(c));
+  return ordered.concat(extra);
+}
+
+function renderTabs(){
+  const tabsEl = document.getElementById('tabs');
+  const cats = categoriesPresent();
+  const counts = {};
+  recipes.forEach(r=> counts[r.category] = (counts[r.category]||0)+1);
+  let html = `<div class="tab ${activeCategory==='All'?'active':''}" data-cat="All">All recipes <span class="tab-count">${recipes.length}</span></div>`;
+  cats.forEach(c=>{
+    html += `<div class="tab ${activeCategory===c?'active':''}" data-cat="${escapeHtml(c)}">${escapeHtml(c)} <span class="tab-count">${counts[c]}</span></div>`;
+  });
+  tabsEl.innerHTML = html;
+  tabsEl.querySelectorAll('.tab').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      activeCategory = el.dataset.cat;
+      activeRecipeId = null;
+      renderTabs();
+      renderMain();
+    });
+  });
+}
+
+function renderMain(){
+  const main = document.getElementById('main');
+  if(activeRecipeId){
+    renderDetail(main);
+    return;
+  }
+  const list = recipes
+    .filter(r=> activeCategory==='All' || r.category===activeCategory)
+    .sort((a,b)=> a.title.localeCompare(b.title));
+
+  let html = `
+    <div class="topline">
+      <div>
+        <h1 class="h1">${activeCategory==='All' ? 'All Recipes' : escapeHtml(activeCategory)}</h1>
+        <p class="h1-sub">${list.length} recipe${list.length!==1?'s':''} · gram measurements throughout</p>
+      </div>
+      <button class="add-recipe-btn" id="addBtn">+ Add recipe</button>
+    </div>
+  `;
+
+  if(list.length === 0){
+    html += `<div class="empty">Nothing here yet. Add the first recipe in this category.</div>`;
+  } else {
+    html += `<div class="grid">`;
+    list.forEach(r=>{
+      html += `
+        <div class="card" data-id="${r.id}">
+          <div class="card-cat">${escapeHtml(r.category)}</div>
+          <div class="card-title">${escapeHtml(r.title)}</div>
+          <div class="card-meta">${escapeHtml(r.subtitle||'')}</div>
+          ${!r.complete ? '<span class="chip-stub">needs details</span>' : ''}
+        </div>`;
+    });
+    html += `</div>`;
+  }
+  main.innerHTML = html;
+
+  document.getElementById('addBtn').addEventListener('click', ()=> openForm(null));
+  main.querySelectorAll('.card').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      activeRecipeId = el.dataset.id;
+      renderMain();
+    });
+  });
+}
+
+function scaleGrams(grams, factor){
+  if(grams === 0 || grams === undefined || grams === null) return null;
+  const val = grams * factor;
+  const rounded = val < 10 ? Math.round(val*10)/10 : Math.round(val);
+  return rounded;
+}
+
+function renderDetail(main){
+  const r = recipes.find(x=>x.id===activeRecipeId);
+  if(!r){ activeRecipeId=null; renderMain(); return; }
+  const currentYield = servingsOverride[r.id] ?? r.baseYield;
+  const factor = r.baseYield ? (currentYield / r.baseYield) : 1;
+
+  let html = `
+    <div class="detail">
+      <button class="back-btn" id="backBtn">&larr; Back to ${escapeHtml(activeCategory==='All'?'all recipes':activeCategory)}</button>
+      <div class="detail-card">
+        <div class="detail-cat">${escapeHtml(r.category)}</div>
+        <h2 class="detail-title">${escapeHtml(r.title)}</h2>
+        ${r.notes ? `<p class="detail-notes">${escapeHtml(r.notes)}</p>` : ''}
+        <div class="detail-row-actions">
+          <button class="icon-btn" id="editBtn">Edit</button>
+          <button class="icon-btn danger" id="deleteBtn">Delete</button>
+        </div>
+  `;
+
+  if(r.baseYield && r.baseYield > 0){
+    html += `
+      <div class="yield-box">
+        <span class="lbl">Yield</span>
+        <div class="stepper">
+          <button id="decBtn">&minus;</button>
+          <span id="yieldVal">${formatNum(currentYield)} ${escapeHtml(r.yieldUnit||'')}</span>
+          <button id="incBtn">+</button>
+        </div>
+      </div>`;
+  }
+
+  if(r.ingredients && r.ingredients.length){
+    html += `<h3 class="section-h">Ingredients</h3><ul class="ingredient-list">`;
+    r.ingredients.forEach(ing=>{
+      const scaled = scaleGrams(ing.grams, factor);
+      const amtStr = (scaled===null) ? '' : `${formatNum(scaled)} g`;
+      html += `<li>
+        <span>${escapeHtml(ing.name)}${ing.note ? `<span class="ing-note">${escapeHtml(ing.note)}</span>`:''}</span>
+        <span class="ing-amt">${amtStr}</span>
+      </li>`;
+    });
+    html += `</ul>`;
+  } else {
+    html += `<h3 class="section-h">Ingredients</h3><p class="detail-notes">Not filled in yet — hit Edit to add amounts.</p>`;
+  }
+
+  if(r.steps && r.steps.length){
+    html += `<h3 class="section-h">Method</h3><ol class="steps-list">`;
+    r.steps.forEach(s=> html += `<li>${escapeHtml(s)}</li>`);
+    html += `</ol>`;
+  } else {
+    html += `<h3 class="section-h">Method</h3><p class="detail-notes">No steps yet — hit Edit to add the method.</p>`;
+  }
+
+  html += `</div></div>`;
+  main.innerHTML = html;
+
+  document.getElementById('backBtn').addEventListener('click', ()=>{ activeRecipeId=null; renderMain(); });
+  document.getElementById('editBtn').addEventListener('click', ()=> openForm(r));
+  document.getElementById('deleteBtn').addEventListener('click', async ()=>{
+    if(confirm(`Delete "${r.title}"? This can't be undone.`)){
+      await deleteRecipe(r.id);
+      recipes = recipes.filter(x=>x.id!==r.id);
+      activeRecipeId = null;
+      renderTabs(); renderMain();
+      showToast('Recipe deleted');
+    }
+  });
+  const decBtn = document.getElementById('decBtn');
+  const incBtn = document.getElementById('incBtn');
+  if(decBtn){
+    decBtn.addEventListener('click', ()=>{
+      const step = r.baseYield >= 100 ? Math.max(1, Math.round(r.baseYield*0.1)) : 1;
+      servingsOverride[r.id] = Math.max(step, (servingsOverride[r.id] ?? r.baseYield) - step);
+      renderDetail(main);
+    });
+    incBtn.addEventListener('click', ()=>{
+      const step = r.baseYield >= 100 ? Math.max(1, Math.round(r.baseYield*0.1)) : 1;
+      servingsOverride[r.id] = (servingsOverride[r.id] ?? r.baseYield) + step;
+      renderDetail(main);
+    });
+  }
+}
+
+function formatNum(n){
+  if(Number.isInteger(n)) return n.toString();
+  return n.toFixed(1);
+}
+
+/* ===================== Add / Edit form ===================== */
+function openForm(recipe){
+  const isEdit = !!recipe;
+  const r = recipe || { id: uid(), category: activeCategory!=='All'?activeCategory:'Pizza', title:'', subtitle:'', notes:'', baseYield:1, yieldUnit:'servings', ingredients:[], steps:[], complete:true };
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>${isEdit ? 'Edit recipe' : 'Add a recipe'}</h2>
+      <div class="field"><label>Title</label><input type="text" id="f_title" value="${escapeAttr(r.title)}"></div>
+      <div class="two-col">
+        <div class="field">
+          <label>Category</label>
+          <select id="f_category">
+            ${CATEGORY_ORDER.map(c=>`<option value="${c}" ${r.category===c?'selected':''}>${c}</option>`).join('')}
+            <option value="__new__">+ New category…</option>
+          </select>
+        </div>
+        <div class="field"><label>Subtitle</label><input type="text" id="f_subtitle" value="${escapeAttr(r.subtitle||'')}"></div>
+      </div>
+      <div class="field" id="newCatField" style="display:none;"><label>New category name</label><input type="text" id="f_newcat"></div>
+      <div class="two-col">
+        <div class="field"><label>Base yield (number)</label><input type="number" step="0.1" id="f_yield" value="${r.baseYield}"></div>
+        <div class="field"><label>Yield unit</label><input type="text" id="f_yieldunit" value="${escapeAttr(r.yieldUnit||'')}" placeholder="dough balls, servings, cake…"></div>
+      </div>
+      <div class="field"><label>Notes</label><textarea id="f_notes">${escapeHtml(r.notes||'')}</textarea></div>
+
+      <div class="field">
+        <label>Ingredients (amount in grams — leave blank for to-taste items)</label>
+        <div id="ingRows"></div>
+        <button type="button" class="add-row-btn" id="addIngRow">+ Add ingredient</button>
+      </div>
+
+      <div class="field">
+        <label>Method steps</label>
+        <div id="stepRows"></div>
+        <button type="button" class="add-row-btn" id="addStepRow">+ Add step</button>
+      </div>
+
+      <div class="modal-actions">
+        <button class="cancel-btn" id="cancelBtn">Cancel</button>
+        <button class="primary-btn" id="saveBtn">Save recipe</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const ingRows = overlay.querySelector('#ingRows');
+  const stepRows = overlay.querySelector('#stepRows');
+
+  function addIngRow(ing){
+    const row = document.createElement('div');
+    row.className = 'ing-row';
+    row.innerHTML = `
+      <input type="text" placeholder="Ingredient name" class="ing-name" value="${escapeAttr(ing?.name||'')}">
+      <input type="number" step="0.1" placeholder="grams" class="ing-grams" value="${ing?.grams ?? ''}">
+      <input type="text" placeholder="note (optional)" class="ing-note" value="${escapeAttr(ing?.note||'')}">
+      <button type="button" class="row-remove" title="Remove">&times;</button>
+    `;
+    row.querySelector('.row-remove').addEventListener('click', ()=> row.remove());
+    ingRows.appendChild(row);
+  }
+  function addStepRow(step){
+    const row = document.createElement('div');
+    row.className = 'step-row';
+    row.innerHTML = `
+      <textarea placeholder="Describe this step" style="flex:1; min-height:38px;">${escapeHtml(step||'')}</textarea>
+      <button type="button" class="row-remove" title="Remove">&times;</button>
+    `;
+    row.querySelector('.row-remove').addEventListener('click', ()=> row.remove());
+    stepRows.appendChild(row);
+  }
+
+  (r.ingredients||[]).forEach(addIngRow);
+  if((r.ingredients||[]).length===0) addIngRow();
+  (r.steps||[]).forEach(addStepRow);
+  if((r.steps||[]).length===0) addStepRow();
+
+  overlay.querySelector('#addIngRow').addEventListener('click', ()=> addIngRow());
+  overlay.querySelector('#addStepRow').addEventListener('click', ()=> addStepRow());
+
+  const catSelect = overlay.querySelector('#f_category');
+  const newCatField = overlay.querySelector('#newCatField');
+  catSelect.addEventListener('change', ()=>{
+    newCatField.style.display = catSelect.value === '__new__' ? 'block' : 'none';
+  });
+
+  overlay.querySelector('#cancelBtn').addEventListener('click', ()=> overlay.remove());
+  overlay.addEventListener('mousedown', (e)=>{ if(e.target===overlay) overlay.remove(); });
+
+  overlay.querySelector('#saveBtn').addEventListener('click', async ()=>{
+    const title = overlay.querySelector('#f_title').value.trim();
+    if(!title){ alert('Give the recipe a title first.'); return; }
+    let category = catSelect.value;
+    if(category === '__new__'){
+      category = overlay.querySelector('#f_newcat').value.trim() || 'Uncategorized';
+    }
+    const ingredients = [...ingRows.querySelectorAll('.ing-row')].map(row=>{
+      const name = row.querySelector('.ing-name').value.trim();
+      const gramsRaw = row.querySelector('.ing-grams').value;
+      const note = row.querySelector('.ing-note').value.trim();
+      return name ? { name, grams: gramsRaw===''? null : parseFloat(gramsRaw), note } : null;
+    }).filter(Boolean);
+    const steps = [...stepRows.querySelectorAll('textarea')].map(t=>t.value.trim()).filter(Boolean);
+
+    const updated = {
+      id: r.id,
+      category,
+      title,
+      subtitle: overlay.querySelector('#f_subtitle').value.trim(),
+      notes: overlay.querySelector('#f_notes').value.trim(),
+      baseYield: parseFloat(overlay.querySelector('#f_yield').value) || 1,
+      yieldUnit: overlay.querySelector('#f_yieldunit').value.trim(),
+      ingredients,
+      steps,
+      complete: (ingredients.length>0 || steps.length>0)
+    };
+
+    await putRecipe(updated);
+    const idx = recipes.findIndex(x=>x.id===updated.id);
+    if(idx>=0) recipes[idx] = updated; else recipes.push(updated);
+    delete servingsOverride[updated.id];
+    activeRecipeId = updated.id;
+    activeCategory = updated.category;
+    overlay.remove();
+    renderTabs();
+    renderMain();
+    showToast(isEdit ? 'Recipe updated' : 'Recipe added');
+  });
+}
+
+/* ===================== Export / Import ===================== */
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(recipes, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'recipe-box-backup.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup downloaded');
+});
+document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const imported = JSON.parse(text);
+    if(!Array.isArray(imported)) throw new Error('bad format');
+    for(const rec of imported){
+      if(!rec.id) rec.id = uid();
+      await putRecipe(rec);
+    }
+    recipes = await getAll();
+    renderTabs(); renderMain();
+    showToast(`Imported ${imported.length} recipe(s)`);
+  }catch(err){
+    alert('Could not read that file — expecting a backup exported from this app.');
+  }
+  e.target.value = '';
+});
+
+/* ===================== Utilities ===================== */
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+function escapeAttr(str){ return escapeHtml(str); }
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+/* ===================== PWA registration ===================== */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* fine if this fails locally */ });
+  });
+}
+</script>
+</body>
+</html>

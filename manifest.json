@@ -1,0 +1,10 @@
+{
+  "name": "The Recipe Box — Joseph's Kitchen",
+  "short_name": "Recipe Box",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F1ECE0",
+  "theme_color": "#F1ECE0",
+  "description": "A gram-precise personal recipe book: pizza dough, sauces, bakes, meal prep, and condiments.",
+  "icons": []
+}
