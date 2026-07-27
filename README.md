@@ -17,17 +17,20 @@ then visit `http://localhost:8080`.
 3. Your site will be live at `https://<username>.github.io/recipe-box/`.
 4. On your phone, open the link and use "Add to Home Screen" — it installs like an app.
 
-## What's seeded vs. what needs filling in
-Recipes marked **"needs details"** are placeholders carried over straight from the
-recipe book's table of contents (title, category, and any notes I already had) —
-the ingredients/steps are empty. Open any of them and hit **Edit** to fill in amounts
-and method; it'll flip to "complete" automatically once you save.
+## What's in the box
+All 27 recipes from *Joseph's Recipe Book* are fully seeded — ingredients, gram (or
+ml/tsp/tbsp/count) amounts, method steps, and the tips/notes from the book — across
+Pizza, Breads & Baked Goods, Desserts, Dairy, Breakfast & Snacks, Meal Prep,
+Condiments & Sauces, and Mocktails. Multi-part recipes (cheesecake, shokupan,
+sticky toffee pudding, etc.) keep their ingredient sections (Crust / Filling,
+Tangzhong / Dough, and so on).
 
-Fully seeded from what we've built together so far:
-- NY-Style Pizza Dough (6 × 12" balls)
-- High-End Cheesecake (restaurant style, water bath)
-- Greek Yogurt Cream Cheese (Labneh)
-- NY Strip Meal Prep Cubes & Air Fryer Sweet Potatoes
+The two idea-list entries (Best High-End Sauces for Cheesecake, Cottage Cheese —
+Quick-Use Ideas) are reference lists rather than single scalable recipes, so they
+skip the yield stepper and show their ratios/ideas as steps instead.
+
+**Download PDF version** in the sidebar gives you back the original formatted PDF
+any time — handy for printing or sharing.
 
 ## Backing up your data
 Since everything lives in the browser's IndexedDB (per-device, per-browser), use

@@ -1,5 +1,5 @@
 const CACHE = 'recipe-box-v1';
-const ASSETS = ['./', './index.html', './manifest.json'];
+const ASSETS = ['./', './index.html', './manifest.json', './Josephs-Recipe-Book.pdf'];
 
 self.addEventListener('install', (e)=>{
   e.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
