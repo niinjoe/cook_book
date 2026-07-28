@@ -1,4 +1,4 @@
-const CACHE = 'recipe-box-v1';
+const CACHE = 'recipe-box-v2';
 const ASSETS = ['./', './index.html', './manifest.json', './Josephs-Recipe-Book.pdf', './apple-touch-icon.png', './icon-192.png', './icon-512.png', './favicon-32.png'];
 
 self.addEventListener('install', (e)=>{
@@ -15,13 +15,18 @@ self.addEventListener('activate', (e)=>{
   self.clients.claim();
 });
 
+// Network-first: always try to fetch the latest version first (so repo updates
+// show up on reload), and only fall back to the cached copy when offline.
 self.addEventListener('fetch', (e)=>{
   if(e.request.method !== 'GET') return;
+  // Never intercept calls to Supabase or any other API - those must always hit the network.
+  if(!e.request.url.startsWith(self.location.origin)) return;
+
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
+    fetch(e.request).then(res => {
       const resClone = res.clone();
       caches.open(CACHE).then(cache => cache.put(e.request, resClone));
       return res;
-    }).catch(() => cached))
+    }).catch(() => caches.match(e.request))
   );
 });
