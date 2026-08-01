@@ -348,8 +348,8 @@
 <script>
 /* ===================== Data layer (Supabase) ===================== */
 // TODO: paste your own project's values here (Project Settings -> API in Supabase)
-const SUPABASE_URL = 'https://ivgmlnzzhdxoofozwgla.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_rK8MILwS79PqqgzNN1MACw_-kZZDvYQ';
+const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -567,6 +567,19 @@ function formatAmountUnit(amount, unit){
   if(!unit) return n;
   return `${n} ${unit}`;
 }
+// Steps can reference an ingredient's current (scaled) amount inline using {ingredient_id},
+// where ingredient_id matches that ingredient's "id" field. Falls back to leaving the
+// placeholder text as-is if no matching ingredient id is found (e.g. older recipes).
+function applyStepPlaceholders(stepText, ingredients, factor){
+  if(!ingredients || !ingredients.length) return stepText;
+  return stepText.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, id) => {
+    const ing = ingredients.find(i => i.id === id);
+    if(!ing) return match;
+    const scaled = scaleAmount(ing.amount, ing.unit, factor);
+    const formatted = formatAmountUnit(scaled, ing.unit);
+    return formatted || match;
+  });
+}
 
 function renderDetail(main){
   const r = recipes.find(x=>x.id===activeRecipeId);
@@ -629,7 +642,7 @@ function renderDetail(main){
 
   if(r.steps && r.steps.length){
     html += `<h3 class="section-h">Method</h3><ol class="steps-list">`;
-    r.steps.forEach(s=> html += `<li>${escapeHtml(s)}</li>`);
+    r.steps.forEach(s=> html += `<li>${escapeHtml(applyStepPlaceholders(s, r.ingredients, factor))}</li>`);
     html += `</ol>`;
   } else {
     html += `<h3 class="section-h">Method</h3><p class="detail-notes">No steps yet — hit Edit to add the method.</p>`;
@@ -705,6 +718,7 @@ function openForm(recipe){
 
       <div class="field">
         <label>Ingredients (amount + unit — leave amount blank for to-taste items)</label>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin:-2px 0 8px;">Tip: in a step below, write an ingredient's name in {curly_braces_like_this} (lowercase, spaces as underscores) to have that step show the live scaled amount as you adjust yield.</div>
         <div id="ingRows"></div>
         <button type="button" class="add-row-btn" id="addIngRow">+ Add ingredient</button>
       </div>
@@ -777,13 +791,21 @@ function openForm(recipe){
     if(category === '__new__'){
       category = overlay.querySelector('#f_newcat').value.trim() || 'Uncategorized';
     }
+    const usedIds = new Set();
+    function slugId(name){
+      let base = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'ingredient';
+      let candidate = base, n = 2;
+      while(usedIds.has(candidate)){ candidate = `${base}_${n++}`; }
+      usedIds.add(candidate);
+      return candidate;
+    }
     const ingredients = [...ingRows.querySelectorAll('.ing-row')].map(row=>{
       const name = row.querySelector('.ing-name').value.trim();
       const amountRaw = row.querySelector('.ing-amount').value;
       const unit = row.querySelector('.ing-unit').value.trim();
       const note = row.querySelector('.ing-note').value.trim();
       const section = row.querySelector('.ing-section').value.trim();
-      return name ? { name, amount: amountRaw===''? null : parseFloat(amountRaw), unit, note, section: section || null } : null;
+      return name ? { id: slugId(name), name, amount: amountRaw===''? null : parseFloat(amountRaw), unit, note, section: section || null } : null;
     }).filter(Boolean);
     const steps = [...stepRows.querySelectorAll('textarea')].map(t=>t.value.trim()).filter(Boolean);
     const tags = overlay.querySelector('#f_tags').value.split(',').map(t=>t.trim()).filter(Boolean);
