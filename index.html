@@ -225,6 +225,8 @@
   }
   .ingredient-list li:last-child{ border-bottom:none; }
   .ing-amt{ font-family:'IBM Plex Mono',monospace; font-weight:600; color:var(--rust-deep); white-space:nowrap; }
+  .ing-amt-col{ display:flex; flex-direction:column; align-items:flex-end; gap:1px; }
+  .ing-alt{ font-family:'IBM Plex Mono',monospace; font-weight:400; font-size:11px; color:var(--ink-soft); white-space:nowrap; }
   .ing-note{ display:block; font-size:11.5px; color:var(--ink-soft); font-weight:400; }
   .sub-h{ font-weight:700; font-size:12.5px; letter-spacing:0.03em; text-transform:uppercase; color:var(--moss); margin:14px 0 4px;}
 
@@ -552,13 +554,13 @@ function renderMain(){
 function scaleAmount(amount, unit, factor){
   if(amount === undefined || amount === null) return null;
   const val = amount * factor;
-  if(unit === 'g' || unit === 'ml'){
+  if(unit === 'g' || unit === 'ml' || unit === 'lb' || unit === 'oz'){
     return val < 10 ? Math.round(val*10)/10 : Math.round(val);
   }
-  if(unit === 'tsp' || unit === 'tbsp'){
+  if(unit === 'tsp' || unit === 'tbsp' || unit === 'cup'){
     return Math.round(val*4)/4;
   }
-  // countable items (eggs, cloves, kiwi, slices, cups, pinches, etc.)
+  // countable items (eggs, cloves, kiwi, slices, cups, pinches, blocks, etc.)
   return val < 1 ? Math.round(val*10)/10 : Math.round(val);
 }
 function formatAmountUnit(amount, unit){
@@ -632,9 +634,18 @@ function renderDetail(main){
       r.ingredients.filter(i=>(i.section||'__none__')===sec).forEach(ing=>{
         const scaled = scaleAmount(ing.amount, ing.unit, factor);
         const amtStr = formatAmountUnit(scaled, ing.unit);
+        let altStr = '';
+        if(ing.altAmount !== undefined && ing.altAmount !== null){
+          const scaledAlt = scaleAmount(ing.altAmount, ing.altUnit, factor);
+          const altFormatted = formatAmountUnit(scaledAlt, ing.altUnit);
+          if(altFormatted) altStr = `≈ ${altFormatted}`;
+        }
         html += `<li>
           <span>${escapeHtml(ing.name)}${ing.note ? `<span class="ing-note">${escapeHtml(ing.note)}</span>`:''}</span>
-          <span class="ing-amt">${escapeHtml(amtStr)}</span>
+          <span class="ing-amt-col">
+            <span class="ing-amt">${escapeHtml(amtStr)}</span>
+            ${altStr ? `<span class="ing-alt">${escapeHtml(altStr)}</span>` : ''}
+          </span>
         </li>`;
       });
       html += `</ul>`;
@@ -721,7 +732,7 @@ function openForm(recipe){
 
       <div class="field">
         <label>Ingredients (amount + unit — leave amount blank for to-taste items)</label>
-        <div style="font-size:11.5px; color:var(--ink-soft); margin:-2px 0 8px;">Tip: in a step below, write an ingredient's name in {curly_braces_like_this} (lowercase, spaces as underscores) to have that step show the live scaled amount as you adjust yield. Use {yield} to reference the current yield number itself (e.g. "divide into {yield} pieces").</div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin:-2px 0 8px;">Second row per ingredient is optional: an alt amount + unit (e.g. 1000 g → 8 cups) that scales live alongside the main amount as you adjust yield — use this instead of writing conversions into the note, since note text never updates. Tip: in a step below, write an ingredient's name in {curly_braces_like_this} (lowercase, spaces as underscores) to have that step show the live scaled amount as you adjust yield. Use {yield} to reference the current yield number itself.</div>
         <div id="ingRows"></div>
         <button type="button" class="add-row-btn" id="addIngRow">+ Add ingredient</button>
       </div>
@@ -748,13 +759,20 @@ function openForm(recipe){
   function addIngRow(ing){
     const row = document.createElement('div');
     row.className = 'ing-row';
+    row.style.cssText = 'flex-direction:column; align-items:stretch; border:1px solid var(--line); border-radius:var(--radius); padding:8px; gap:6px;';
     row.innerHTML = `
-      <input type="text" placeholder="Section (optional, e.g. Crust)" class="ing-section" value="${escapeAttr(ing?.section||'')}" style="flex:1;">
-      <input type="text" placeholder="Ingredient name" class="ing-name" value="${escapeAttr(ing?.name||'')}" style="flex:1.6;">
-      <input type="number" step="0.1" placeholder="amount" class="ing-amount" value="${ing?.amount ?? ''}" style="flex:0.7;">
-      <input type="text" placeholder="unit (g, ml, tsp…)" class="ing-unit" value="${escapeAttr(ing?.unit||'')}" style="flex:0.8;">
-      <input type="text" placeholder="note (optional)" class="ing-note" value="${escapeAttr(ing?.note||'')}" style="flex:1.2;">
-      <button type="button" class="row-remove" title="Remove">&times;</button>
+      <div style="display:flex; gap:8px;">
+        <input type="text" placeholder="Section (optional)" class="ing-section" value="${escapeAttr(ing?.section||'')}" style="flex:0.9;">
+        <input type="text" placeholder="Ingredient name" class="ing-name" value="${escapeAttr(ing?.name||'')}" style="flex:1.6;">
+        <input type="number" step="0.1" placeholder="amount" class="ing-amount" value="${ing?.amount ?? ''}" style="flex:0.6;">
+        <input type="text" placeholder="unit" class="ing-unit" value="${escapeAttr(ing?.unit||'')}" style="flex:0.6;">
+        <button type="button" class="row-remove" title="Remove">&times;</button>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input type="number" step="0.01" placeholder="alt amount (optional)" class="ing-alt-amount" value="${ing?.altAmount ?? ''}" style="flex:0.7;">
+        <input type="text" placeholder="alt unit (e.g. cup)" class="ing-alt-unit" value="${escapeAttr(ing?.altUnit||'')}" style="flex:0.7;">
+        <input type="text" placeholder="note (optional, non-scaling text)" class="ing-note" value="${escapeAttr(ing?.note||'')}" style="flex:1.6;">
+      </div>
     `;
     row.querySelector('.row-remove').addEventListener('click', ()=> row.remove());
     ingRows.appendChild(row);
@@ -808,7 +826,12 @@ function openForm(recipe){
       const unit = row.querySelector('.ing-unit').value.trim();
       const note = row.querySelector('.ing-note').value.trim();
       const section = row.querySelector('.ing-section').value.trim();
-      return name ? { id: slugId(name), name, amount: amountRaw===''? null : parseFloat(amountRaw), unit, note, section: section || null } : null;
+      const altAmountRaw = row.querySelector('.ing-alt-amount').value;
+      const altUnit = row.querySelector('.ing-alt-unit').value.trim();
+      return name ? {
+        id: slugId(name), name, amount: amountRaw===''? null : parseFloat(amountRaw), unit, note, section: section || null,
+        altAmount: altAmountRaw===''? null : parseFloat(altAmountRaw), altUnit: altUnit || null
+      } : null;
     }).filter(Boolean);
     const steps = [...stepRows.querySelectorAll('textarea')].map(t=>t.value.trim()).filter(Boolean);
     const tags = overlay.querySelector('#f_tags').value.split(',').map(t=>t.trim()).filter(Boolean);
