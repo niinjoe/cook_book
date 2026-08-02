@@ -348,8 +348,8 @@
 <script>
 /* ===================== Data layer (Supabase) ===================== */
 // TODO: paste your own project's values here (Project Settings -> API in Supabase)
-const SUPABASE_URL = 'https://ivgmlnzzhdxoofozwgla.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_rK8MILwS79PqqgzNN1MACw_-kZZDvYQ';
+const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -570,9 +570,12 @@ function formatAmountUnit(amount, unit){
 // Steps can reference an ingredient's current (scaled) amount inline using {ingredient_id},
 // where ingredient_id matches that ingredient's "id" field. Falls back to leaving the
 // placeholder text as-is if no matching ingredient id is found (e.g. older recipes).
-function applyStepPlaceholders(stepText, ingredients, factor){
-  if(!ingredients || !ingredients.length) return stepText;
+function applyStepPlaceholders(stepText, ingredients, factor, currentYield){
   return stepText.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, id) => {
+    if(id === 'yield' && currentYield !== undefined){
+      return formatNum(currentYield);
+    }
+    if(!ingredients || !ingredients.length) return match;
     const ing = ingredients.find(i => i.id === id);
     if(!ing) return match;
     const scaled = scaleAmount(ing.amount, ing.unit, factor);
@@ -642,7 +645,7 @@ function renderDetail(main){
 
   if(r.steps && r.steps.length){
     html += `<h3 class="section-h">Method</h3><ol class="steps-list">`;
-    r.steps.forEach(s=> html += `<li>${escapeHtml(applyStepPlaceholders(s, r.ingredients, factor))}</li>`);
+    r.steps.forEach(s=> html += `<li>${escapeHtml(applyStepPlaceholders(s, r.ingredients, factor, currentYield))}</li>`);
     html += `</ol>`;
   } else {
     html += `<h3 class="section-h">Method</h3><p class="detail-notes">No steps yet — hit Edit to add the method.</p>`;
@@ -718,7 +721,7 @@ function openForm(recipe){
 
       <div class="field">
         <label>Ingredients (amount + unit — leave amount blank for to-taste items)</label>
-        <div style="font-size:11.5px; color:var(--ink-soft); margin:-2px 0 8px;">Tip: in a step below, write an ingredient's name in {curly_braces_like_this} (lowercase, spaces as underscores) to have that step show the live scaled amount as you adjust yield.</div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin:-2px 0 8px;">Tip: in a step below, write an ingredient's name in {curly_braces_like_this} (lowercase, spaces as underscores) to have that step show the live scaled amount as you adjust yield. Use {yield} to reference the current yield number itself (e.g. "divide into {yield} pieces").</div>
         <div id="ingRows"></div>
         <button type="button" class="add-row-btn" id="addIngRow">+ Add ingredient</button>
       </div>
