@@ -399,6 +399,7 @@ function dbRowToRecipe(row){
     tips: row.tips || '',
     guide: row.guide || null,
     nutrition: row.nutrition || null,
+    sizeScaling: row.size_scaling || null,
     complete: row.complete
   };
 }
@@ -417,6 +418,7 @@ function recipeToDbRow(r){
     tips: r.tips || '',
     guide: r.guide || null,
     nutrition: r.nutrition || null,
+    size_scaling: r.sizeScaling || null,
     complete: r.complete,
     updated_at: new Date().toISOString()
   };
@@ -444,6 +446,7 @@ let recipes = [];
 let activeCategory = 'All';
 let activeRecipeId = null;
 let servingsOverride = {}; // id -> current yield qty
+let pizzaDiameterOverride = {}; // id -> current pizza diameter in inches
 
 /* ===================== Auth + Init ===================== */
 function showLoginScreen(){
@@ -603,10 +606,13 @@ function formatAmountUnit(amount, unit){
 // Steps can reference an ingredient's current (scaled) amount inline using {ingredient_id},
 // where ingredient_id matches that ingredient's "id" field. Falls back to leaving the
 // placeholder text as-is if no matching ingredient id is found (e.g. older recipes).
-function applyStepPlaceholders(stepText, ingredients, factor, currentYield){
+function applyStepPlaceholders(stepText, ingredients, factor, currentYield, currentDiameter){
   return stepText.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, id) => {
     if(id === 'yield' && currentYield !== undefined){
       return formatNum(currentYield);
+    }
+    if(id === 'diameter' && currentDiameter !== undefined && currentDiameter !== null){
+      return formatNum(currentDiameter);
     }
     if(!ingredients || !ingredients.length) return match;
     const ing = ingredients.find(i => i.id === id);
@@ -702,7 +708,15 @@ function renderDetail(main){
   const r = recipes.find(x=>x.id===activeRecipeId);
   if(!r){ activeRecipeId=null; renderMain(); return; }
   const currentYield = servingsOverride[r.id] ?? r.baseYield;
-  const factor = (r.baseYield && r.baseYield > 0) ? (currentYield / r.baseYield) : 1;
+  const countFactor = (r.baseYield && r.baseYield > 0) ? (currentYield / r.baseYield) : 1;
+
+  let sizeFactor = 1;
+  let currentDiameter = null;
+  if(r.sizeScaling && r.sizeScaling.baseDiameterIn){
+    currentDiameter = pizzaDiameterOverride[r.id] ?? r.sizeScaling.baseDiameterIn;
+    sizeFactor = Math.pow(currentDiameter / r.sizeScaling.baseDiameterIn, 2);
+  }
+  const factor = countFactor * sizeFactor;
 
   let html = `
     <div class="detail">
@@ -718,7 +732,35 @@ function renderDetail(main){
         </div>
   `;
 
-  if(r.baseYield && r.baseYield > 0){
+  if(r.sizeScaling && r.sizeScaling.baseDiameterIn){
+    const presets = [12, 14, 16];
+    const totalGrams = (r.ingredients||[]).reduce((sum, ing)=>{
+      if(ing.unit === 'g' && ing.amount != null){
+        return sum + scaleAmount(ing.amount, 'g', factor);
+      }
+      return sum;
+    }, 0);
+    const perUnit = currentYield > 0 ? totalGrams / currentYield : totalGrams;
+    html += `
+      <div class="yield-box" style="flex-direction:column; align-items:flex-start; gap:10px; width:100%;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span class="lbl">Pizza size</span>
+          <div class="pill-row" data-guide-group="pizza-size">
+            ${presets.map(d=>`<button class="pill-btn ${d===currentDiameter?'active':''}" data-diameter="${d}">${d}"</button>`).join('')}
+          </div>
+          <input type="number" id="customDiameter" placeholder="custom \u2033" value="${presets.includes(currentDiameter)?'':currentDiameter}" style="width:64px; padding:6px 8px; border:1px solid var(--line); border-radius:var(--radius); font-family:'Inter'; font-size:13px;">
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="lbl">${escapeHtml(r.yieldUnit && r.yieldUnit.toLowerCase().includes('pizza') ? 'Pizzas' : 'Yield')}</span>
+          <div class="stepper">
+            <button id="decBtn">&minus;</button>
+            <span id="yieldVal">${formatNum(currentYield)} ${escapeHtml(r.yieldUnit||'')}</span>
+            <button id="incBtn">+</button>
+          </div>
+        </div>
+        <div class="steak-result-sub" style="font-size:13px;">≈ ${formatNum(Math.round(perUnit))} g per ${escapeHtml((r.yieldUnit||'unit').replace(/s$/,''))} at ${currentDiameter}"</div>
+      </div>`;
+  } else if(r.baseYield && r.baseYield > 0){
     html += `
       <div class="yield-box">
         <span class="lbl">Yield</span>
@@ -772,7 +814,7 @@ function renderDetail(main){
 
   if(r.steps && r.steps.length){
     html += `<h3 class="section-h">Method</h3><ol class="steps-list">`;
-    r.steps.forEach(s=> html += `<li>${escapeHtml(applyStepPlaceholders(s, r.ingredients, factor, currentYield))}</li>`);
+    r.steps.forEach(s=> html += `<li>${escapeHtml(applyStepPlaceholders(s, r.ingredients, factor, currentYield, currentDiameter))}</li>`);
     html += `</ol>`;
   } else {
     html += `<h3 class="section-h">Method</h3><p class="detail-notes">No steps yet — hit Edit to add the method.</p>`;
@@ -827,6 +869,23 @@ function renderDetail(main){
       renderDetail(main);
     });
   }
+  const sizeGroup = main.querySelector('[data-guide-group="pizza-size"]');
+  if(sizeGroup){
+    sizeGroup.querySelectorAll('.pill-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        pizzaDiameterOverride[r.id] = parseFloat(btn.dataset.diameter);
+        renderDetail(main);
+      });
+    });
+    const customInput = document.getElementById('customDiameter');
+    customInput.addEventListener('change', ()=>{
+      const val = parseFloat(customInput.value);
+      if(val && val > 0){
+        pizzaDiameterOverride[r.id] = val;
+        renderDetail(main);
+      }
+    });
+  }
 }
 
 function formatNum(n){
@@ -865,7 +924,7 @@ function openForm(recipe){
 
       <div class="field">
         <label>Ingredients (amount + unit — leave amount blank for to-taste items)</label>
-        <div style="font-size:11.5px; color:var(--ink-soft); margin:-2px 0 8px;">Second row per ingredient is optional: an alt amount + unit (e.g. 1000 g → 8 cups) that scales live alongside the main amount as you adjust yield — use this instead of writing conversions into the note, since note text never updates. Tip: in a step below, write an ingredient's name in {curly_braces_like_this} (lowercase, spaces as underscores) to have that step show the live scaled amount as you adjust yield. Use {yield} to reference the current yield number itself.</div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin:-2px 0 8px;">Second row per ingredient is optional: an alt amount + unit (e.g. 1000 g → 8 cups) that scales live alongside the main amount as you adjust yield — use this instead of writing conversions into the note, since note text never updates. Tip: in a step below, write an ingredient's name in {curly_braces_like_this} (lowercase, spaces as underscores) to have that step show the live scaled amount as you adjust yield. Use {yield} for the current yield number, and {diameter} for the current pizza size (only meaningful on recipes with size scaling enabled).</div>
         <div id="ingRows"></div>
         <button type="button" class="add-row-btn" id="addIngRow">+ Add ingredient</button>
       </div>
@@ -988,6 +1047,7 @@ function openForm(recipe){
     const idx = recipes.findIndex(x=>x.id===updated.id);
     if(idx>=0) recipes[idx] = updated; else recipes.push(updated);
     delete servingsOverride[updated.id];
+    delete pizzaDiameterOverride[updated.id];
     activeRecipeId = updated.id;
     activeCategory = updated.category;
     overlay.remove();
