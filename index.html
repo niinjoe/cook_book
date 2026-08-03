@@ -330,6 +330,15 @@
   }
   .steak-result-main{ font-family:'Fraunces',serif; font-weight:600; font-size:19px; color:var(--rust-deep); }
   .steak-result-sub{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--ink-soft); margin-top:4px; }
+
+  .nutrition-desc{ font-size:12px; color:var(--ink-soft); font-style:italic; margin-bottom:10px; }
+  .macro-row{ display:flex; gap:8px; margin-bottom:6px; }
+  .macro-cell{
+    flex:1; background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:10px 6px; text-align:center;
+  }
+  .macro-val{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:16px; color:var(--rust-deep); }
+  .macro-lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.03em; color:var(--ink-soft); margin-top:2px; }
 </style>
 </head>
 <body>
@@ -389,6 +398,7 @@ function dbRowToRecipe(row){
     steps: row.steps || [],
     tips: row.tips || '',
     guide: row.guide || null,
+    nutrition: row.nutrition || null,
     complete: row.complete
   };
 }
@@ -406,6 +416,7 @@ function recipeToDbRow(r){
     steps: r.steps || [],
     tips: r.tips || '',
     guide: r.guide || null,
+    nutrition: r.nutrition || null,
     complete: r.complete,
     updated_at: new Date().toISOString()
   };
@@ -677,6 +688,16 @@ function wireSteakGuideEvents(main, r){
   });
 }
 
+function renderMacroRow(macros){
+  return `
+    <div class="macro-row">
+      <div class="macro-cell"><div class="macro-val">${formatNum(macros.kcal)}</div><div class="macro-lbl">kcal</div></div>
+      <div class="macro-cell"><div class="macro-val">${formatNum(macros.protein_g)}g</div><div class="macro-lbl">protein</div></div>
+      <div class="macro-cell"><div class="macro-val">${formatNum(macros.carbs_g)}g</div><div class="macro-lbl">carbs</div></div>
+      <div class="macro-cell"><div class="macro-val">${formatNum(macros.fat_g)}g</div><div class="macro-lbl">fat</div></div>
+    </div>`;
+}
+
 function renderDetail(main){
   const r = recipes.find(x=>x.id===activeRecipeId);
   if(!r){ activeRecipeId=null; renderMain(); return; }
@@ -759,6 +780,22 @@ function renderDetail(main){
 
   if(r.tips){
     html += `<h3 class="section-h">Notes</h3><p class="detail-notes">${escapeHtml(r.tips)}</p>`;
+  }
+
+  if(r.nutrition){
+    html += `<h3 class="section-h">Nutrition</h3>`;
+    html += `<div class="nutrition-desc">${escapeHtml(r.nutrition.servingDescription || 'per serving')}</div>`;
+    if(r.nutrition.perServing){
+      html += renderMacroRow(r.nutrition.perServing);
+    } else if(r.nutrition.variants){
+      Object.entries(r.nutrition.variants).forEach(([label, macros])=>{
+        html += `<div class="sub-h">${escapeHtml(label)}</div>`;
+        html += renderMacroRow(macros);
+      });
+    }
+    if(r.nutrition.note){
+      html += `<p class="detail-notes" style="margin-top:8px; font-size:11.5px;">${escapeHtml(r.nutrition.note)}</p>`;
+    }
   }
 
   html += `</div></div>`;
