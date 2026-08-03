@@ -312,6 +312,24 @@
     padding:32px 30px; width:100%; max-width:340px;
   }
   .login-error{ color:var(--danger); font-size:12.5px; min-height:16px; margin:-4px 0 4px; }
+
+  .steak-guide{ margin: 6px 0 20px; }
+  .steak-guide-row{ margin-bottom:14px; }
+  .steak-guide-label{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--moss); margin-bottom:6px; }
+  .pill-row{ display:flex; flex-wrap:wrap; gap:6px; }
+  .pill-btn{
+    background:var(--paper); border:1px solid var(--line); border-radius:20px;
+    padding:7px 13px; font-family:'Inter',sans-serif; font-size:13px; font-weight:600;
+    color:var(--ink-soft); cursor:pointer;
+  }
+  .pill-btn:hover{ border-color:var(--rust); }
+  .pill-btn.active{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .steak-result{
+    background:var(--card); border:1px solid var(--rust); border-radius:6px;
+    padding:16px; margin-top:16px;
+  }
+  .steak-result-main{ font-family:'Fraunces',serif; font-weight:600; font-size:19px; color:var(--rust-deep); }
+  .steak-result-sub{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--ink-soft); margin-top:4px; }
 </style>
 </head>
 <body>
@@ -370,6 +388,7 @@ function dbRowToRecipe(row){
     ingredients: row.ingredients || [],
     steps: row.steps || [],
     tips: row.tips || '',
+    guide: row.guide || null,
     complete: row.complete
   };
 }
@@ -386,6 +405,7 @@ function recipeToDbRow(r){
     ingredients: r.ingredients || [],
     steps: r.steps || [],
     tips: r.tips || '',
+    guide: r.guide || null,
     complete: r.complete,
     updated_at: new Date().toISOString()
   };
@@ -405,7 +425,7 @@ async function deleteRecipe(id){
   if(error){ console.error(error); showToast('Could not delete — check connection'); }
 }
 
-const CATEGORY_ORDER = ["Pizza","Breads & Baked Goods","Desserts","Dairy","Breakfast & Snacks","Meal Prep","Condiments & Sauces","Mocktails"];
+const CATEGORY_ORDER = ["How-To","Pizza","Breads & Baked Goods","Desserts","Dairy","Breakfast & Snacks","Meal Prep","Mains","Condiments & Sauces","Mocktails"];
 
 
 /* ===================== State ===================== */
@@ -586,6 +606,77 @@ function applyStepPlaceholders(stepText, ingredients, factor, currentYield){
   });
 }
 
+let steakGuideSelection = { thicknessIdx: 1, donenessIdx: 2, method: 'pan' };
+
+function renderSteakGuide(guide, recipeId){
+  const { thicknessIdx, donenessIdx, method } = steakGuideSelection;
+  const d = guide.doneness[donenessIdx];
+  const isThick = thicknessIdx === guide.thicknesses.length - 1;
+
+  let resultHtml = '';
+  if(method === 'pan'){
+    if(isThick){
+      resultHtml = `
+        <div class="steak-result-main">Sear 2-3 min per side, then finish in a 400°F oven</div>
+        <div class="steak-result-sub">Target: ${escapeHtml(d.temp)}</div>
+        <p class="detail-notes" style="margin-top:8px;">${escapeHtml(guide.panNote)}</p>`;
+    } else {
+      const base = guide.panBaseMinutesPerSide[thicknessIdx];
+      const perSide = Math.max(1.5, base + d.offset);
+      const rounded = Math.round(perSide * 2) / 2;
+      resultHtml = `
+        <div class="steak-result-main">~${formatNum(rounded)} minutes per side</div>
+        <div class="steak-result-sub">Target: ${escapeHtml(d.temp)}</div>`;
+    }
+  } else {
+    const ovenBase = guide.reverseSearOvenBaseMinutes[thicknessIdx];
+    const ovenTime = Math.max(5, Math.round(ovenBase + d.ovenOffset));
+    resultHtml = `
+      <div class="steak-result-main">~${ovenTime}-${ovenTime+5} min in the oven, then sear ${escapeHtml(guide.reverseSearFinishMinutesPerSide)} min per side</div>
+      <div class="steak-result-sub">Oven at ${escapeHtml(guide.reverseSearOvenTemp)} · Target: ${escapeHtml(d.temp)}</div>
+      <p class="detail-notes" style="margin-top:8px;">${escapeHtml(guide.reverseSearNote)}</p>`;
+  }
+
+  return `
+    <div class="steak-guide">
+      <div class="steak-guide-row">
+        <div class="steak-guide-label">Thickness</div>
+        <div class="pill-row" data-guide-group="thickness">
+          ${guide.thicknesses.map((t,i)=>`<button class="pill-btn ${i===thicknessIdx?'active':''}" data-idx="${i}">${escapeHtml(t)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="steak-guide-row">
+        <div class="steak-guide-label">Doneness</div>
+        <div class="pill-row" data-guide-group="doneness">
+          ${guide.doneness.map((dn,i)=>`<button class="pill-btn ${i===donenessIdx?'active':''}" data-idx="${i}">${escapeHtml(dn.name)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="steak-guide-row">
+        <div class="steak-guide-label">Method</div>
+        <div class="pill-row" data-guide-group="method">
+          <button class="pill-btn ${method==='pan'?'active':''}" data-val="pan">Pan / Grill</button>
+          <button class="pill-btn ${method==='reverse'?'active':''}" data-val="reverse">Reverse Sear</button>
+        </div>
+      </div>
+      <div class="steak-result">${resultHtml}</div>
+    </div>
+  `;
+}
+
+function wireSteakGuideEvents(main, r){
+  const guideEl = main.querySelector('.steak-guide');
+  if(!guideEl) return;
+  guideEl.querySelectorAll('[data-guide-group="thickness"] .pill-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ steakGuideSelection.thicknessIdx = parseInt(btn.dataset.idx); renderDetail(main); });
+  });
+  guideEl.querySelectorAll('[data-guide-group="doneness"] .pill-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ steakGuideSelection.donenessIdx = parseInt(btn.dataset.idx); renderDetail(main); });
+  });
+  guideEl.querySelectorAll('[data-guide-group="method"] .pill-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ steakGuideSelection.method = btn.dataset.val; renderDetail(main); });
+  });
+}
+
 function renderDetail(main){
   const r = recipes.find(x=>x.id===activeRecipeId);
   if(!r){ activeRecipeId=null; renderMain(); return; }
@@ -616,6 +707,10 @@ function renderDetail(main){
           <button id="incBtn">+</button>
         </div>
       </div>`;
+  }
+
+  if(r.guide && r.guide.type === 'steak_thickness_doneness'){
+    html += renderSteakGuide(r.guide, r.id);
   }
 
   if(r.ingredients && r.ingredients.length){
@@ -650,7 +745,7 @@ function renderDetail(main){
       });
       html += `</ul>`;
     });
-  } else {
+  } else if(!r.guide){
     html += `<h3 class="section-h">Ingredients</h3><p class="detail-notes">Not filled in yet — hit Edit to add amounts.</p>`;
   }
 
@@ -671,6 +766,7 @@ function renderDetail(main){
 
   document.getElementById('backBtn').addEventListener('click', ()=>{ activeRecipeId=null; renderMain(); });
   document.getElementById('editBtn').addEventListener('click', ()=> openForm(r));
+  wireSteakGuideEvents(main, r);
   document.getElementById('deleteBtn').addEventListener('click', async ()=>{
     if(confirm(`Delete "${r.title}"? This can't be undone.`)){
       await deleteRecipe(r.id);
