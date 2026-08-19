@@ -330,6 +330,7 @@
   }
   .steak-result-main{ font-family:'Fraunces',serif; font-weight:600; font-size:19px; color:var(--rust-deep); }
   .steak-result-sub{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--ink-soft); margin-top:4px; }
+  .steak-selection-summary{ font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:0.03em; color:var(--moss); margin-bottom:6px; }
 
   .nutrition-desc{ font-size:12px; color:var(--ink-soft); font-style:italic; margin-bottom:10px; }
   .macro-row{ display:flex; gap:8px; margin-bottom:6px; }
@@ -339,6 +340,22 @@
   }
   .macro-val{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:16px; color:var(--rust-deep); }
   .macro-lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.03em; color:var(--ink-soft); margin-top:2px; }
+
+  /* ---------- Print / Save-as-PDF ---------- */
+  @media print{
+    @page{ margin: 0.6in; }
+    body{ background:#fff; }
+    .login-screen, .sidebar, .back-btn, .detail-row-actions, .toast, .modal-overlay,
+    .pill-row, .stepper button, #signOutBtn{ display:none !important; }
+    .app{ display:block !important; }
+    .main{ padding:0 !important; max-width:none !important; }
+    .detail{ max-width:none !important; }
+    .detail-card{ box-shadow:none !important; border:none !important; padding:0 !important; }
+    .detail-card::before{ display:none !important; }
+    .ingredient-list li, .steps-list li{ break-inside:avoid; }
+    .section-h{ break-after:avoid; }
+    .yield-box, .macro-row, .steak-result{ border-color:#ccc !important; }
+  }
 </style>
 </head>
 <body>
@@ -545,6 +562,7 @@ function renderMain(){
     renderDetail(main);
     return;
   }
+  document.title = "The Recipe Box — Joseph's Kitchen";
   const list = recipes
     .filter(r=> activeCategory==='All' || r.category===activeCategory)
     .sort((a,b)=> a.title.localeCompare(b.title));
@@ -629,11 +647,12 @@ function renderSteakGuide(guide, recipeId){
   const { thicknessIdx, donenessIdx, method } = steakGuideSelection;
   const d = guide.doneness[donenessIdx];
   const isThick = thicknessIdx === guide.thicknesses.length - 1;
+  const selectionSummary = `${escapeHtml(guide.thicknesses[thicknessIdx])} · ${escapeHtml(d.name)} · ${method === 'pan' ? 'Pan / Grill' : 'Reverse Sear'}`;
 
-  let resultHtml = '';
+  let resultHtml = `<div class="steak-selection-summary">${selectionSummary}</div>`;
   if(method === 'pan'){
     if(isThick){
-      resultHtml = `
+      resultHtml += `
         <div class="steak-result-main">Sear 2-3 min per side, then finish in a 400°F oven</div>
         <div class="steak-result-sub">Target: ${escapeHtml(d.temp)}</div>
         <p class="detail-notes" style="margin-top:8px;">${escapeHtml(guide.panNote)}</p>`;
@@ -641,14 +660,14 @@ function renderSteakGuide(guide, recipeId){
       const base = guide.panBaseMinutesPerSide[thicknessIdx];
       const perSide = Math.max(1.5, base + d.offset);
       const rounded = Math.round(perSide * 2) / 2;
-      resultHtml = `
+      resultHtml += `
         <div class="steak-result-main">~${formatNum(rounded)} minutes per side</div>
         <div class="steak-result-sub">Target: ${escapeHtml(d.temp)}</div>`;
     }
   } else {
     const ovenBase = guide.reverseSearOvenBaseMinutes[thicknessIdx];
     const ovenTime = Math.max(5, Math.round(ovenBase + d.ovenOffset));
-    resultHtml = `
+    resultHtml += `
       <div class="steak-result-main">~${ovenTime}-${ovenTime+5} min in the oven, then sear ${escapeHtml(guide.reverseSearFinishMinutesPerSide)} min per side</div>
       <div class="steak-result-sub">Oven at ${escapeHtml(guide.reverseSearOvenTemp)} · Target: ${escapeHtml(d.temp)}</div>
       <p class="detail-notes" style="margin-top:8px;">${escapeHtml(guide.reverseSearNote)}</p>`;
@@ -728,6 +747,7 @@ function renderDetail(main){
         ${r.notes ? `<p class="detail-notes">${escapeHtml(r.notes)}</p>` : ''}
         <div class="detail-row-actions">
           <button class="icon-btn" id="editBtn">Edit</button>
+          <button class="icon-btn" id="pdfBtn">Download PDF</button>
           <button class="icon-btn danger" id="deleteBtn">Delete</button>
         </div>
   `;
@@ -842,9 +862,11 @@ function renderDetail(main){
 
   html += `</div></div>`;
   main.innerHTML = html;
+  document.title = `${r.title} — The Recipe Box`;
 
   document.getElementById('backBtn').addEventListener('click', ()=>{ activeRecipeId=null; renderMain(); });
   document.getElementById('editBtn').addEventListener('click', ()=> openForm(r));
+  document.getElementById('pdfBtn').addEventListener('click', ()=> window.print());
   wireSteakGuideEvents(main, r);
   document.getElementById('deleteBtn').addEventListener('click', async ()=>{
     if(confirm(`Delete "${r.title}"? This can't be undone.`)){
