@@ -463,7 +463,8 @@ let recipes = [];
 let activeCategory = 'All';
 let activeRecipeId = null;
 let servingsOverride = {}; // id -> current yield qty
-let pizzaDiameterOverride = {}; // id -> current pizza diameter in inches
+let pizzaDiameterOverride = {}; // id -> current pizza diameter in inches (also used for cake pan diameter)
+let cakeSplitOverride = {}; // id -> true when each baked cake will be cut in half into two layers
 
 /* ===================== Auth + Init ===================== */
 function showLoginScreen(){
@@ -621,10 +622,61 @@ function formatAmountUnit(amount, unit){
   if(!unit) return n;
   return `${n} ${unit}`;
 }
+/* ===================== Cake scaling =====================
+   A recipe whose "guide" is {type:'cake_scaling', ...} scales each ingredient SECTION by what it is for:
+     batter   -> cakes baked x pan area
+     filling  -> number of fillings x pan area
+     coating  -> outside surface area (top + sides; the sides grow with stack height)
+     fillcoat -> a blend of filling and coating (one cream used for both)
+   cfg.sections maps a section name to one of those; unmapped sections count as batter.
+   "Cut in half" doubles the layers from the same number of baked cakes, which adds fillings. */
+function cakeCalc(cfg, baseCakes, cakes, diameter, split){
+  const D0 = cfg.baseDiameterIn || 8;
+  const L0 = baseCakes * (cfg.baseSplit ? 2 : 1);
+  const L = cakes * (split ? 2 : 1);
+  const f0 = Math.max(L0 - 1, 1);
+  const f = Math.max(L - 1, 0);
+  const area = Math.pow(diameter / D0, 2);
+  const lh = cfg.layerHeightIn ?? 1.4;
+  const gap = cfg.fillingGapIn ?? 0.3;
+  const surface = (d, n, l) => Math.PI * d * d / 4 + Math.PI * d * (n * lh + Math.max(l - 1, 0) * gap);
+  const batter = (cakes / baseCakes) * area;
+  const filling = (f / f0) * area;
+  const coating = surface(diameter, cakes, L) / surface(D0, baseCakes, L0);
+  const share = cfg.fillcoatFillShare ?? 0.5;
+  return { layers: L, fillings: f, factors: { batter, filling, coating, fillcoat: share * filling + (1 - share) * coating } };
+}
+function cakeKind(cake, ing){
+  return (cake.cfg.sections || {})[ing.section || ''] || 'batter';
+}
+function cakeIngredientFactor(cake, ing){
+  const f = cake.factors[cakeKind(cake, ing)];
+  return f === undefined ? cake.factors.batter : f;
+}
+function buildCake(r, cakes, diameter, split){
+  const cfg = r.guide;
+  const calc = cakeCalc(cfg, r.baseYield, cakes, diameter, split);
+  const cake = { cfg, diameter, split, cakes, layers: calc.layers, fillings: calc.fillings, factors: calc.factors };
+  const share = cfg.fillcoatFillShare ?? 0.5;
+  let batterG = 0, fillG = 0;
+  (r.ingredients || []).forEach(ing=>{
+    if(ing.unit !== 'g' || ing.amount == null) return;
+    const kind = cakeKind(cake, ing);
+    if(kind === 'batter') batterG += ing.amount * calc.factors.batter;
+    else if(kind === 'filling') fillG += ing.amount * calc.factors.filling;
+    else if(kind === 'fillcoat') fillG += ing.amount * share * calc.factors.filling;
+  });
+  const round5 = x => Math.round(x / 5) * 5;
+  cake.batterPerPan = round5(batterG / cakes);
+  cake.fillingPerLayer = calc.fillings > 0 ? round5(fillG / calc.fillings) : 0;
+  return cake;
+}
+
 // Steps can reference an ingredient's current (scaled) amount inline using {ingredient_id},
 // where ingredient_id matches that ingredient's "id" field. Falls back to leaving the
 // placeholder text as-is if no matching ingredient id is found (e.g. older recipes).
-function applyStepPlaceholders(stepText, ingredients, factor, currentYield, currentDiameter){
+// Cake recipes also get {layers}, {fillings}, {batter_per_pan} and {filling_per_layer}.
+function applyStepPlaceholders(stepText, ingredients, factor, currentYield, currentDiameter, cake){
   return stepText.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, id) => {
     if(id === 'yield' && currentYield !== undefined){
       return formatNum(currentYield);
@@ -632,10 +684,16 @@ function applyStepPlaceholders(stepText, ingredients, factor, currentYield, curr
     if(id === 'diameter' && currentDiameter !== undefined && currentDiameter !== null){
       return formatNum(currentDiameter);
     }
+    if(cake){
+      if(id === 'layers') return String(cake.layers);
+      if(id === 'fillings') return String(cake.fillings);
+      if(id === 'batter_per_pan') return formatNum(cake.batterPerPan);
+      if(id === 'filling_per_layer') return cake.fillings > 0 ? formatNum(cake.fillingPerLayer) : '0';
+    }
     if(!ingredients || !ingredients.length) return match;
     const ing = ingredients.find(i => i.id === id);
     if(!ing) return match;
-    const scaled = scaleAmount(ing.amount, ing.unit, factor);
+    const scaled = scaleAmount(ing.amount, ing.unit, cake ? cakeIngredientFactor(cake, ing) : factor);
     const formatted = formatAmountUnit(scaled, ing.unit);
     return formatted || match;
   });
@@ -737,6 +795,14 @@ function renderDetail(main){
   }
   const factor = countFactor * sizeFactor;
 
+  let cake = null;
+  if(r.guide && r.guide.type === 'cake_scaling'){
+    const cakeDiameter = pizzaDiameterOverride[r.id] ?? r.guide.baseDiameterIn ?? 8;
+    const cakeSplit = cakeSplitOverride[r.id] ?? !!r.guide.baseSplit;
+    cake = buildCake(r, currentYield, cakeDiameter, cakeSplit);
+    currentDiameter = cakeDiameter;
+  }
+
   let html = `
     <div class="detail">
       <button class="back-btn" id="backBtn">&larr; Back to ${escapeHtml(activeCategory==='All'?'all recipes':activeCategory)}</button>
@@ -752,7 +818,37 @@ function renderDetail(main){
         </div>
   `;
 
-  if(r.sizeScaling && r.sizeScaling.baseDiameterIn){
+  if(cake){
+    const presets = cake.cfg.presets || [6, 8, 9, 10];
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    const summary = `${cake.cakes} × ${formatNum(cake.diameter)}" round cake${cake.cakes === 1 ? '' : 's'}${cake.split ? ', each cut in half' : ''} → ${plural(cake.layers, 'layer')}, ${plural(cake.fillings, 'filling')} · ≈ ${formatNum(cake.batterPerPan)} g batter per pan`;
+    html += `
+      <div class="yield-box" style="flex-direction:column; align-items:flex-start; gap:10px; width:100%;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span class="lbl">Pan size</span>
+          <div class="pill-row" data-guide-group="pizza-size">
+            ${presets.map(d=>`<button class="pill-btn ${d===cake.diameter?'active':''}" data-diameter="${d}">${d}"</button>`).join('')}
+          </div>
+          <input type="number" id="customDiameter" placeholder="custom ″" value="${presets.includes(cake.diameter)?'':cake.diameter}" style="width:64px; padding:6px 8px; border:1px solid var(--line); border-radius:var(--radius); font-family:'Inter'; font-size:13px;">
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="lbl">Cakes baked</span>
+          <div class="stepper">
+            <button id="decBtn">&minus;</button>
+            <span id="yieldVal">${formatNum(currentYield)} ${escapeHtml(r.yieldUnit||'')}</span>
+            <button id="incBtn">+</button>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span class="lbl">Each cake</span>
+          <div class="pill-row" data-guide-group="cake-split">
+            <button class="pill-btn ${!cake.split?'active':''}" data-split="0">Keep whole</button>
+            <button class="pill-btn ${cake.split?'active':''}" data-split="1">Cut in half</button>
+          </div>
+        </div>
+        <div class="steak-result-sub" style="font-size:13px;">${escapeHtml(summary)}</div>
+      </div>`;
+  } else if(r.sizeScaling && r.sizeScaling.baseDiameterIn){
     const presets = [12, 14, 16];
     const totalGrams = (r.ingredients||[]).reduce((sum, ing)=>{
       if(ing.unit === 'g' && ing.amount != null){
@@ -805,16 +901,20 @@ function renderDetail(main){
       if(!seen.has(key)){ seen.add(key); sections.push(key); }
     });
     sections.forEach(sec=>{
+      // A cake with a single layer has no filling, so those ingredients (scaled to 0) are left out.
+      const items = r.ingredients.filter(i=>(i.section||'__none__')===sec && !(cake && cakeIngredientFactor(cake, i) === 0));
+      if(!items.length) return;
       if(sec !== '__none__'){
         html += `<div class="sub-h">${escapeHtml(sec)}</div>`;
       }
       html += `<ul class="ingredient-list">`;
-      r.ingredients.filter(i=>(i.section||'__none__')===sec).forEach(ing=>{
-        const scaled = scaleAmount(ing.amount, ing.unit, factor);
+      items.forEach(ing=>{
+        const ingFactor = cake ? cakeIngredientFactor(cake, ing) : factor;
+        const scaled = scaleAmount(ing.amount, ing.unit, ingFactor);
         const amtStr = formatAmountUnit(scaled, ing.unit);
         let altStr = '';
         if(ing.altAmount !== undefined && ing.altAmount !== null){
-          const scaledAlt = scaleAmount(ing.altAmount, ing.altUnit, factor);
+          const scaledAlt = scaleAmount(ing.altAmount, ing.altUnit, ingFactor);
           const altFormatted = formatAmountUnit(scaledAlt, ing.altUnit);
           if(altFormatted) altStr = `≈ ${altFormatted}`;
         }
@@ -834,7 +934,11 @@ function renderDetail(main){
 
   if(r.steps && r.steps.length){
     html += `<h3 class="section-h">Method</h3><ol class="steps-list">`;
-    r.steps.forEach(s=> html += `<li>${escapeHtml(applyStepPlaceholders(s, r.ingredients, factor, currentYield, currentDiameter))}</li>`);
+    // On cake recipes, a step starting with "[split]" only shows when each cake is being cut in half.
+    r.steps
+      .filter(s=> !cake ? true : (!/^\[split\]/.test(s) || cake.split))
+      .map(s=> cake ? s.replace(/^\[split\]\s*/, '') : s)
+      .forEach(s=> html += `<li>${escapeHtml(applyStepPlaceholders(s, r.ingredients, factor, currentYield, currentDiameter, cake))}</li>`);
     html += `</ol>`;
   } else {
     html += `<h3 class="section-h">Method</h3><p class="detail-notes">No steps yet — hit Edit to add the method.</p>`;
@@ -906,6 +1010,15 @@ function renderDetail(main){
         pizzaDiameterOverride[r.id] = val;
         renderDetail(main);
       }
+    });
+  }
+  const splitGroup = main.querySelector('[data-guide-group="cake-split"]');
+  if(splitGroup){
+    splitGroup.querySelectorAll('.pill-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        cakeSplitOverride[r.id] = btn.dataset.split === '1';
+        renderDetail(main);
+      });
     });
   }
 }
@@ -1062,6 +1175,11 @@ function openForm(recipe){
       ingredients,
       steps,
       tips: overlay.querySelector('#f_tips').value.trim(),
+      // The form has no fields for these, so carry them over. Without this, saving an edit
+      // used to wipe a recipe's nutrition, steak guide / cake scaling, and pizza size scaling.
+      guide: r.guide || null,
+      nutrition: r.nutrition || null,
+      sizeScaling: r.sizeScaling || null,
       complete: (ingredients.length>0 || steps.length>0)
     };
 
@@ -1070,6 +1188,7 @@ function openForm(recipe){
     if(idx>=0) recipes[idx] = updated; else recipes.push(updated);
     delete servingsOverride[updated.id];
     delete pizzaDiameterOverride[updated.id];
+    delete cakeSplitOverride[updated.id];
     activeRecipeId = updated.id;
     activeCategory = updated.category;
     overlay.remove();
